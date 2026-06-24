@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Financial Dashboard – PortCo GmbH</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-primary: #ffffff; --bg-secondary: #f5f5f4; --bg-tertiary: #f1efe8;
+      --text-primary: #1a1a18; --text-secondary: #5f5e5a; --text-tertiary: #888780;
+      --border: rgba(0,0,0,0.12); --border-md: rgba(0,0,0,0.25);
+      --green: #1D9E75; --red: #D85A30; --blue: #378ADD; --amber: #BA7517;
+      --radius: 8px; --radius-lg: 12px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-primary: #1c1c1a; --bg-secondary: #252523; --bg-tertiary: #2c2c2a;
+        --text-primary: #f0ede8; --text-secondary: #a8a6a0; --text-tertiary: #6e6d69;
+        --border: rgba(255,255,255,0.10); --border-md: rgba(255,255,255,0.20);
+      }
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg-tertiary); color: var(--text-primary); font-size: 14px; min-height: 100vh; }
+    .shell { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
+    /* Header */
+    .header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+    .header h1 { font-size: 20px; font-weight: 500; color: var(--text-primary); }
+    .header p { font-size: 12px; color: var(--text-secondary); margin-top: 3px; }
+    .period-sel { display: flex; align-items: center; gap: 8px; }
+    .period-sel label { font-size: 12px; color: var(--text-secondary); }
+    /* KPI cards */
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+    @media (max-width: 700px) { .kpi-grid { grid-template-columns: repeat(2,1fr); } }
+    .kpi { background: var(--bg-primary); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 14px 16px; }
+    .kpi-label { font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; }
+    .kpi-val { font-size: 22px; font-weight: 500; }
+    .kpi-sub { font-size: 11px; margin-top: 4px; }
+    /* Tabs */
+    .tabs { display: flex; border-bottom: 0.5px solid var(--border); margin-bottom: 16px; overflow-x: auto; background: var(--bg-primary); border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: 0 8px; }
+    .tab { background: none; border: none; border-bottom: 2px solid transparent; padding: 12px 16px; font-size: 13px; color: var(--text-secondary); cursor: pointer; white-space: nowrap; font-family: inherit; }
+    .tab:hover { color: var(--text-primary); }
+    .tab.active { color: var(--text-primary); border-bottom-color: var(--text-primary); font-weight: 500; }
+    /* Tab panels */
+    .panel { background: var(--bg-primary); border: 0.5px solid var(--border); border-radius: 0 0 var(--radius-lg) var(--radius-lg); padding: 20px; overflow-x: auto; }
+    /* Tables */
+    .ft { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; min-width: 600px; }
+    .ft th { font-size: 10px; font-weight: 500; color: var(--text-secondary); text-align: right; padding: 5px 7px; border-bottom: 0.5px solid var(--border); white-space: nowrap; }
+    .ft th:first-child { text-align: left; }
+    .ft td { padding: 5px 7px; text-align: right; border-bottom: 0.5px solid var(--border); color: var(--text-primary); font-size: 12px; }
+    .ft td:first-child { text-align: left; color: var(--text-secondary); font-size: 11px; }
+    .ft tr.sh td { font-weight: 500; color: var(--text-primary); background: var(--bg-secondary); font-size: 11px; padding: 6px 7px 3px; border-top: 0.5px solid var(--border-md); }
+    .ft tr.sh td:first-child { color: var(--text-primary); }
+    .ft tr.st td { font-weight: 500; color: var(--text-primary); border-top: 0.5px solid var(--border-md); border-bottom: 0.5px solid var(--border-md); }
+    .ft tr.st td:first-child { color: var(--text-primary); }
+    .ft tr.tot td { font-weight: 500; color: var(--text-primary); border-top: 1px solid var(--border-md); background: var(--bg-secondary); }
+    .ft tr.tot td:first-child { color: var(--text-primary); }
+    .ft tr.tgl { cursor: pointer; }
+    .ft tr.tgl:hover td { background: var(--bg-secondary); }
+    .ft tr.tgl td:first-child { color: var(--text-primary); font-weight: 500; }
+    .ft tr.sub-r td { font-size: 11px; }
+    .ft tr.sub-r td:first-child { padding-left: 22px; color: var(--text-secondary); }
+    .ft tr.mrg-r td { font-size: 10px; color: var(--text-secondary); }
+    .ft tr.mrg-r td:first-child { padding-left: 14px; }
+    .ft tr.sep td { border-top: 0.5px dashed var(--border); }
+    .ft tr:last-child td { border-bottom: none; }
+    /* Bilanz layout */
+    .bl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 800px) { .bl-grid { grid-template-columns: 1fr; } }
+    .bl-section-title { font-size: 11px; font-weight: 500; color: var(--text-primary); margin-bottom: 8px; }
+    /* Mix layout */
+    .mix-kpi { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 16px; }
+    .mix-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+    .mix-chart-label { font-size: 11px; color: var(--text-secondary); margin-bottom: 6px; }
+    /* Variance colours */
+    .vp { color: var(--green); }
+    .vn { color: var(--red); }
+    .vn2 { color: var(--text-tertiary); }
+    /* Status bar */
+    .status-bar { margin-top: 12px; padding: 10px 14px; background: var(--bg-secondary); border-radius: var(--radius); font-size: 11px; color: var(--text-secondary); }
+    /* Form elements */
+    select, input { background: var(--bg-secondary); border: 0.5px solid var(--border-md); border-radius: 6px; padding: 5px 8px; font-size: 12px; color: var(--text-primary); font-family: inherit; }
+    select:focus, input:focus { outline: 2px solid var(--blue); outline-offset: 1px; }
+    /* Unit toggle */
+    .unit-seg { display:flex; border:0.5px solid var(--border-md); border-radius:6px; overflow:hidden; }
+    .unit-seg button { background:none; border:none; padding:5px 12px; font-size:12px; color:var(--text-secondary); cursor:pointer; font-family:inherit; transition:background 0.12s,color 0.12s; }
+    .unit-seg button.active { background:var(--text-primary); color:var(--bg-primary); }
+    /* Drop zone */
+    .drop-zone { border:1.5px dashed var(--border-md); border-radius:var(--radius-lg); padding:28px 20px; text-align:center; cursor:pointer; transition:border-color 0.15s,background 0.15s; user-select:none; }
+    .drop-zone:hover,.drop-zone.dragover { border-color:var(--blue); background:rgba(55,138,221,0.05); }
+    .drop-zone i { font-size:28px; color:var(--text-tertiary); margin-bottom:8px; display:block; }
+    .susa-item { display:flex; align-items:center; justify-content:space-between; padding:7px 10px; border-radius:6px; background:var(--bg-secondary); margin-bottom:4px; font-size:12px; }
+    .susa-item .susa-del { cursor:pointer; color:var(--text-tertiary); font-size:11px; margin-left:8px; flex-shrink:0; }
+    .susa-item .susa-del:hover { color:var(--red); }
+    .dot-ok { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--green); margin-right:6px; vertical-align:middle; }
+    .imp-btn { background:var(--blue); color:#fff; border:none; border-radius:6px; padding:7px 14px; font-size:12px; cursor:pointer; font-family:inherit; }
+    .imp-btn:hover { opacity:0.9; }
+    .imp-btn.sec { background:var(--bg-secondary); color:var(--text-primary); border:0.5px solid var(--border-md); }
+    .imp-btn.sec:hover { background:var(--bg-tertiary); }
+  </style>
+</head>
+<body>
+<div class="shell">
+  <div class="header">
+    <div>
+      <h1 id="co-name">PortCo GmbH – Financial Dashboard</h1>
+      <p>Management reporting · <span id="unit-desc">Alle Werte in €m</span></p>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div class="unit-seg">
+        <button id="btn-m" class="active" onclick="setUnit(1)">€m</button>
+        <button id="btn-k" onclick="setUnit(1000)">€k</button>
+      </div>
+      <div class="period-sel">
+        <label>Berichtsmonat</label>
+        <select id="smo"></select>
+        <select id="syr"></select>
+      </div>
+    </div>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi"><div class="kpi-label">Umsatz LTM</div><div class="kpi-val" id="k1">—</div><div class="kpi-sub" id="k1v">—</div></div>
+    <div class="kpi"><div class="kpi-label">EBITDA LTM</div><div class="kpi-val" id="k2">—</div><div class="kpi-sub" id="k2v">—</div></div>
+    <div class="kpi"><div class="kpi-label">Net Debt</div><div class="kpi-val" id="k3">—</div><div class="kpi-sub" id="k3v">—</div></div>
+    <div class="kpi"><div class="kpi-label">Net Leverage</div><div class="kpi-val" id="k4">—</div><div class="kpi-sub" id="k4v">—</div></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-t="pl">P&L</button>
+    <button class="tab" data-t="cf">Cash Flow</button>
+    <button class="tab" data-t="bl">Bilanz</button>
+    <button class="tab" data-t="nd">Net Debt & Leverage</button>
+    <button class="tab" data-t="mx">Umsatzsplit</button>
+    <button class="tab" data-t="dt">Daten & Import</button>
+  </div>
+
+  <!-- P&L -->
+  <div id="tp-pl" class="panel">
+    <table class="ft">
+      <colgroup><col style="width:24%"><col style="width:8%"><col style="width:8%"><col style="width:6%"><col style="width:8%"><col style="width:8%"><col style="width:6%"><col style="width:8%"><col style="width:8%"><col style="width:6%"></colgroup>
+      <thead><tr><th class="unit-hdr">€m</th><th id="hmo">Monat</th><th>VJ</th><th>Δ%</th><th id="hytd">YTD</th><th>VJ</th><th>Δ%</th><th>LTM</th><th>VJ</th><th>Δ%</th></tr></thead>
+      <tbody id="pl-b"></tbody>
+    </table>
+  </div>
+
+  <!-- Cash Flow -->
+  <div id="tp-cf" class="panel" style="display:none">
+    <table class="ft">
+      <colgroup><col style="width:24%"><col style="width:8%"><col style="width:8%"><col style="width:6%"><col style="width:8%"><col style="width:8%"><col style="width:6%"><col style="width:8%"><col style="width:8%"><col style="width:6%"></colgroup>
+      <thead><tr><th class="unit-hdr">€m</th><th id="hmo-cf">Monat</th><th>VJ</th><th>Δ%</th><th id="hytd-cf">YTD</th><th>VJ</th><th>Δ%</th><th>LTM</th><th>VJ</th><th>Δ%</th></tr></thead>
+      <tbody id="cf-b"></tbody>
+    </table>
+  </div>
+
+  <!-- Bilanz -->
+  <div id="tp-bl" class="panel" style="display:none">
+    <div class="bl-grid">
+      <div>
+        <div class="bl-section-title">Aktiva</div>
+        <table class="ft" style="min-width:300px">
+          <colgroup><col style="width:52%"><col style="width:20%"><col style="width:18%"><col style="width:10%"></colgroup>
+          <thead><tr><th class="unit-hdr">€m</th><th id="hbl">Aktuell</th><th>VJ</th><th>Δ%</th></tr></thead>
+          <tbody id="bl-aktiva"></tbody>
+        </table>
+      </div>
+      <div>
+        <div class="bl-section-title">Passiva</div>
+        <table class="ft" style="min-width:300px">
+          <colgroup><col style="width:52%"><col style="width:20%"><col style="width:18%"><col style="width:10%"></colgroup>
+          <thead><tr><th class="unit-hdr">€m</th><th>Aktuell</th><th>VJ</th><th>Δ%</th></tr></thead>
+          <tbody id="bl-passiva"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="status-bar" id="bl-check">Bilanzsumme wird berechnet…</div>
+  </div>
+
+  <!-- Net Debt -->
+  <div id="tp-nd" class="panel" style="display:none">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
+      <div>
+        <table class="ft" style="min-width:280px">
+          <colgroup><col style="width:52%"><col style="width:20%"><col style="width:18%"><col style="width:10%"></colgroup>
+          <thead><tr><th>Bilanz (Monatsende)</th><th id="hnd-cur">Aktuell</th><th>VJ</th><th>Δ%</th></tr></thead>
+          <tbody id="nd-b"></tbody>
+        </table>
+      </div>
+      <div>
+        <table class="ft" style="min-width:280px">
+          <colgroup><col style="width:52%"><col style="width:20%"><col style="width:18%"><col style="width:10%"></colgroup>
+          <thead><tr><th>Net Debt Bridge YTD</th><th>Aktuell</th><th>VJ</th><th>Δ%</th></tr></thead>
+          <tbody id="nd-br"></tbody>
+        </table>
+      </div>
+    </div>
+    <table class="ft">
+      <colgroup><col style="width:24%"><col style="width:8%"><col style="width:8%"><col style="width:6%"><col style="width:8%"><col style="width:8%"><col style="width:6%"><col style="width:8%"><col style="width:8%"><col style="width:6%"></colgroup>
+      <thead><tr><th>Leverage</th><th>Monat</th><th>VJ</th><th>Δ</th><th>YTD Ø</th><th>VJ</th><th>Δ</th><th>LTM</th><th>VJ</th><th>Δ</th></tr></thead>
+      <tbody id="lev-b"></tbody>
+    </table>
+  </div>
+
+  <!-- Umsatzsplit -->
+  <div id="tp-mx" class="panel" style="display:none">
+    <div class="mix-kpi">
+      <div class="kpi"><div class="kpi-label">Software LTM</div><div class="kpi-val" style="font-size:18px" id="ms1">—</div><div class="kpi-sub" id="ms1p">—</div></div>
+      <div class="kpi"><div class="kpi-label">Services LTM</div><div class="kpi-val" style="font-size:18px" id="ms2">—</div><div class="kpi-sub" id="ms2p">—</div></div>
+      <div class="kpi"><div class="kpi-label">Hardware LTM</div><div class="kpi-val" style="font-size:18px" id="ms3">—</div><div class="kpi-sub" id="ms3p">—</div></div>
+    </div>
+    <div class="mix-charts">
+      <div><div class="mix-chart-label">LTM Umsatzmix</div><div style="position:relative;height:200px"><canvas id="ch-mix" role="img" aria-label="LTM Umsatzmix">Mix.</canvas></div></div>
+      <div><div class="mix-chart-label">Kategorie LTM vs. VJ</div><div style="position:relative;height:200px"><canvas id="ch-bar" role="img" aria-label="Kategorienvergleich">Vergleich.</canvas></div></div>
+    </div>
+    <table class="ft">
+      <colgroup><col style="width:24%"><col style="width:8%"><col style="width:8%"><col style="width:6%"><col style="width:8%"><col style="width:8%"><col style="width:6%"><col style="width:8%"><col style="width:8%"><col style="width:6%"></colgroup>
+      <thead><tr><th class="unit-hdr">€m</th><th>Monat</th><th>VJ</th><th>Δ%</th><th>YTD</th><th>VJ</th><th>Δ%</th><th>LTM</th><th>VJ</th><th>Δ%</th></tr></thead>
+      <tbody id="mx-b"></tbody>
+    </table>
+  </div>
+
+  <!-- Daten & Import -->
+  <div id="tp-dt" class="panel" style="display:none">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start">
+      <div>
+        <div class="bl-section-title" style="margin-bottom:12px">DATEV SuSa importieren</div>
+        <div style="margin-bottom:12px">
+          <button class="imp-btn" id="pick-btn" onclick="pickFolder()"><i class="ti ti-folder-open" style="margin-right:5px;vertical-align:-2px"></i>Ordner verknüpfen</button>
+          <div id="folder-status" style="display:none;margin-top:8px;padding:7px 10px;border-radius:6px;background:var(--bg-secondary);font-size:12px;align-items:center;gap:8px">
+            <span class="dot-ok"></span><span id="folder-name" style="font-weight:500"></span>
+            <button onclick="rescanFolder()" style="margin-left:auto;background:none;border:none;color:var(--blue);cursor:pointer;font-size:11px;font-family:inherit;padding:0">↻ Neu einlesen</button>
+          </div>
+        </div>
+        <div style="margin-bottom:8px;font-size:11px;color:var(--text-tertiary)">oder einzelne Dateien ablegen:</div>
+        <div class="drop-zone" id="drop-zone">
+          <i class="ti ti-file-spreadsheet"></i>
+          <div style="font-size:13px;font-weight:500;margin-bottom:4px">SuSa-Dateien hier ablegen</div>
+          <div style="font-size:11px;color:var(--text-secondary)">oder <label for="file-in" style="color:var(--blue);cursor:pointer;font-weight:500">Dateien auswählen</label></div>
+          <input type="file" id="file-in" accept=".xlsx,.xls" multiple style="display:none">
+        </div>
+        <div style="margin-top:10px;font-size:11px;color:var(--text-secondary);line-height:1.6">
+          Format: DATEV SuSa Excel · SKR03 · monatlich kumuliert<br>
+          Eine Datei pro Monat; Zeitraum wird automatisch erkannt.
+        </div>
+        <div id="parse-msg" style="margin-top:8px;font-size:11px"></div>
+      </div>
+      <div>
+        <div class="bl-section-title" style="margin-bottom:12px">Geladene Perioden <span id="susa-count" style="font-weight:400;color:var(--text-secondary)">(0)</span></div>
+        <div id="susa-list" style="max-height:220px;overflow-y:auto;margin-bottom:12px">
+          <div style="font-size:12px;color:var(--text-tertiary);padding:4px 0">Noch keine Dateien geladen.</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="imp-btn" onclick="applySuSa()">Auf Dashboard anwenden</button>
+          <button class="imp-btn sec" onclick="resetSuSa()">Zurücksetzen</button>
+        </div>
+        <div id="apply-msg" style="margin-top:8px;font-size:11px;color:var(--text-secondary)"></div>
+      </div>
+    </div>
+    <div style="margin-top:24px">
+      <div class="bl-section-title" style="margin-bottom:8px">SKR03 Kontenzuordnung</div>
+      <table class="ft" style="min-width:480px">
+        <thead><tr><th>Kennzahl</th><th style="text-align:left">SKR03 Konten</th><th style="text-align:left">Soll/Haben</th><th style="text-align:left">Hinweis</th></tr></thead>
+        <tbody>
+          <tr><td>Umsatz</td><td style="text-align:left">8000–8999</td><td style="text-align:left">Haben</td><td style="text-align:left">Alle Erlöskonten</td></tr>
+          <tr><td>Materialaufwand</td><td style="text-align:left">3100–3199</td><td style="text-align:left">Soll</td><td style="text-align:left">Rohstoffe, Hilfsstoffe</td></tr>
+          <tr><td>Bezogene Leistungen</td><td style="text-align:left">3200–3299</td><td style="text-align:left">Soll</td><td style="text-align:left">Fremdleistungen</td></tr>
+          <tr><td>Löhne & Gehälter</td><td style="text-align:left">4000–4099</td><td style="text-align:left">Soll</td><td style="text-align:left">Bruttolohn</td></tr>
+          <tr><td>Sozialabgaben</td><td style="text-align:left">4100–4199</td><td style="text-align:left">Soll</td><td style="text-align:left">AG-Anteil SV</td></tr>
+          <tr><td>Miete & Facility</td><td style="text-align:left">4200–4299</td><td style="text-align:left">Soll</td><td style="text-align:left">Raumkosten</td></tr>
+          <tr><td>Vertrieb & Marketing</td><td style="text-align:left">4300–4499</td><td style="text-align:left">Soll</td><td style="text-align:left">Werbe-, Reisekosten</td></tr>
+          <tr><td>IT & Infrastruktur</td><td style="text-align:left">4600–4699</td><td style="text-align:left">Soll</td><td style="text-align:left">EDV, Lizenzen</td></tr>
+          <tr><td>Beratung & Recht</td><td style="text-align:left">4700–4799</td><td style="text-align:left">Soll</td><td style="text-align:left">Rechts-/Steuerberatung</td></tr>
+          <tr><td>Zinsen</td><td style="text-align:left">7300–7399</td><td style="text-align:left">Soll</td><td style="text-align:left">Bankzinsen</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+// =============================================================================
+//  KONFIGURATION – Hier alle Eingaben anpassen
+// =============================================================================
+
+// Unternehmensname (wird im Header angezeigt)
+const COMPANY_NAME = 'PortCo GmbH – Financial Dashboard';
+
+// Berichtszeitraum: welche Jahre stehen zur Auswahl?
+// Datenbasis muss 2 Jahre früher beginnen (für LTM VJ-Vergleich)
+// Beispiel: Auswahl 2024–2025 → Daten ab 2022
+const REPORT_YEARS  = [2024, 2025];   // Jahre im Dropdown
+const DATA_START    = 2022;           // erstes Jahr im Datensatz (mind. 2 J. vor erstem Report-Jahr)
+
+// Saisonalitätsmuster (Jan–Dez, relative Gewichtung)
+// Summe spielt keine Rolle – wird automatisch normiert
+const SEASONS = [0.75, 0.80, 0.90, 0.88, 0.92, 0.95, 0.85, 0.88, 0.95, 1.00, 1.05, 1.30];
+
+// ---- Jahres-Parameter -------------------------------------------------------
+// Alle Werte in €m (Jahreszahlen / Monatszahlen wie angegeben)
+// Für neue Jahre einfach weitere Einträge ergänzen, z. B. 2026: ...
+
+const ANN = {
+  // Jahresumsatz (€m)
+  rev: {
+    2022: 80,
+    2023: 95,
+    2024: 108,
+    2025: 125,
+  },
+
+  // Rohmarge (Rohertrag / Gesamtleistung)
+  grossMargin: {
+    2022: 0.595,
+    2023: 0.615,
+    2024: 0.635,
+    2025: 0.652,
+  },
+
+  // Personalkosten in % Umsatz
+  personnelPct: {
+    2022: 0.375,
+    2023: 0.368,
+    2024: 0.360,
+    2025: 0.353,
+  },
+
+  // sbA (Sonst. betr. Aufwendungen) in % Umsatz
+  sbaPct: {
+    2022: 0.100,
+    2023: 0.097,
+    2024: 0.093,
+    2025: 0.090,
+  },
+
+  // Zinsen pro Monat (negativ = Aufwand)
+  interestPerMonth: {
+    2022: -0.60,
+    2023: -0.52,
+    2024: -0.45,
+    2025: -0.38,
+  },
+
+  // Tilgung pro Monat (negativ = Abfluss)
+  repaymentPerMonth: {
+    2022: -0.80,
+    2023: -0.80,
+    2024: -0.80,
+    2025: -0.80,
+  },
+
+  // Dividenden: einmalig im Juni des jeweiligen Jahres (negativ = Abfluss, 0 = keine)
+  dividendJune: {
+    2022: 0,
+    2023: 0,
+    2024: 0,
+    2025: 0,
+  },
+};
+
+// ---- Umsatzsplit (Kategorien) ------------------------------------------------
+// Prozentsatz von Kategorie 1 (Software) am Jahresumsatz – Rest wird aufgeteilt
+// Kategorie 3 (Hardware) in %; Rest geht an Kategorie 2 (Services)
+const SPLIT = {
+  cat1Name: 'Software',
+  cat2Name: 'Services',
+  cat3Name: 'Hardware',
+  cat1Pct: { 2022: 0.41, 2023: 0.43, 2024: 0.45, 2025: 0.48 },
+  cat3Pct: { 2022: 0.23, 2023: 0.22, 2024: 0.21, 2025: 0.19 },
+};
+
+// ---- Bilanz-Startwerte -------------------------------------------------------
+const BS_START = {
+  netDebt:    55.0,   // Net Debt zum 01.01. des DATA_START-Jahres (€m)
+  ppe:        30.0,   // PP&E (netto) zum 01.01. des DATA_START-Jahres (€m)
+  intangibles: 18.0, // Immaterielle Vermögensgegenstände (€m)
+  grossDebt:  65.0,  // Bruttoverschuldung (€m)
+};
+
+// ---- Weitere Parameter -------------------------------------------------------
+const CAPEX_PCT    = 0.025;   // Capex in % des Monatsumsatzes
+const DA_PCT       = 0.030;   // D&A in % des Monatsumsatzes
+const TAX_RATE     = 0.28;    // Ertragsteuerquote
+
+// =============================================================================
+//  AB HIER NICHTS ÄNDERN – Berechnungslogik
+// =============================================================================
+
+document.getElementById('co-name').textContent = COMPANY_NAME;
+
+let unitMult = 1;          // 1 = €m display, 1000 = €k display
+const susaStore = new Map(); // key: gi(yr,mo), value: {period, kontoData, filename}
+let susaApplied = false;
+let folderHandle = null;
+
+const MNM = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+const SHO = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+const SS = SEASONS.reduce((a,b) => a+b, 0);
+const NUM_YEARS = REPORT_YEARS[REPORT_YEARS.length-1] - DATA_START + 1;
+const N = NUM_YEARS * 12;
+
+const D = {
+  rev:[],bestand:[],gesamtleist:[],matauf:[],bezleist:[],rohertrag:[],
+  sbe:[],personal:[],loehne:[],sozial:[],sonstperso:[],
+  sba:[],vertrieb:[],miete:[],it_:[],beratung:[],sonstsba:[],
+  ebitda:[],da:[],ebit:[],int_:[],ebt:[],tax:[],ni:[],
+  nwc:[],ocf:[],capex:[],fcf:[],zinsen:[],tilgung:[],div:[],cfother:[],cashnet:[],
+  nd:[],sw:[],sv:[],hw:[],
+  bs_intang:[],bs_ppe:[],bs_finanzanl:[],bs_anlagev:[],
+  bs_vorraete:[],bs_forder:[],bs_sonstforder:[],bs_kasse:[],bs_umlaufv:[],bs_rap:[],bs_totalaktiva:[],
+  bs_GK:[],bs_KR:[],bs_grueckl:[],bs_ytdNI:[],bs_EK:[],
+  bs_strueckst:[],bs_sonstrueckst:[],bs_rueckst:[],
+  bs_bankverb:[],bs_llverb:[],bs_sonstverb:[],bs_verbind:[],bs_totalpassiva:[]
+};
+
+let nd_acc = BS_START.netDebt;
+let ppe_acc = BS_START.ppe;
+let intang_acc = BS_START.intangibles;
+let gDebt_acc = BS_START.grossDebt;
+let cumYtdNI = 0;
+
+for (let i = 0; i < N; i++) {
+  const yr = DATA_START + Math.floor(i / 12);
+  const mo = i % 12;
+  const r = ANN.rev[yr] * SEASONS[mo] / SS;
+  const gm = ANN.grossMargin[yr];
+
+  const bestand = r * 0.006;
+  const gl = r + bestand;
+  const matauf  = -gl * (1 - gm) * 0.57;
+  const bezleist = -gl * (1 - gm) * 0.43;
+  const rohertrag = gl + matauf + bezleist;
+  const sbe = r * 0.022;
+
+  const personal = -r * ANN.personnelPct[yr];
+  const loehne   = personal * 0.745;
+  const sozial   = personal * 0.185;
+  const sonstperso = personal * 0.07;
+
+  const sba_   = -r * ANN.sbaPct[yr];
+  const vertrieb = sba_ * 0.33;
+  const miete    = sba_ * 0.22;
+  const it_v     = sba_ * 0.18;
+  const beratung = sba_ * 0.15;
+  const sonstsba = sba_ * 0.12;
+
+  const ebitda = rohertrag + sbe + personal + sba_;
+  const da     = -r * DA_PCT;
+  const ebit   = ebitda + da;
+  const int__  = ANN.interestPerMonth[yr];
+  const ebt    = ebit + int__;
+  const tax    = ebt > 0 ? -ebt * TAX_RATE : 0;
+  const ni     = ebt + tax;
+
+  const nwc = r * (mo===0?-0.055 : mo===1?-0.015 : mo===2?-0.010 : mo===8?-0.010 : mo===11?0.060 : mo===10?0.020 : 0);
+  const ocf    = ebitda + tax + nwc;
+  const capex  = -r * CAPEX_PCT;
+  const fcf    = ocf + capex;
+  const zinsen = int__;
+  const til    = ANN.repaymentPerMonth[yr];
+  const divMo  = mo === 5 ? (ANN.dividendJune[yr] || 0) : 0;
+  const cfother = mo === 3 ? -0.4 : 0;
+  const cashnet = fcf + zinsen + til + divMo + cfother;
+
+  nd_acc  = nd_acc - cashnet;
+  ppe_acc = Math.max(5, ppe_acc + Math.abs(capex) - r * DA_PCT);
+  intang_acc = Math.max(0, intang_acc - 0.12);
+  gDebt_acc  = Math.max(12, gDebt_acc - 0.8);
+
+  if (mo === 0) cumYtdNI = 0;
+  cumYtdNI += ni;
+
+  const cogs_mo = Math.abs(matauf + bezleist);
+  const kasse_b = Math.max(2, gDebt_acc - nd_acc);
+  const vorraete_b  = cogs_mo * (35 / 30);
+  const forder_b    = r * (52 / 30);
+  const sonstforder_b = r * 0.018 + 0.4;
+  const rap_b = 0.5;
+  const umlaufv_b = vorraete_b + forder_b + sonstforder_b + kasse_b;
+  const anlagev_b = ppe_acc + intang_acc + 5;
+  const totalAktiva_b = anlagev_b + umlaufv_b + rap_b;
+
+  const stRueckst  = Math.abs(tax) * 2.5;
+  const sonstRueckst = 7 + i * 0.04;
+  const rueckst_b  = stRueckst + sonstRueckst;
+  const llverb_b   = cogs_mo * (28 / 30);
+  const sonstverb_b = r * 0.055;
+  const verbind_b  = gDebt_acc + llverb_b + sonstverb_b;
+  const EK_b       = totalAktiva_b - rueckst_b - verbind_b;
+  const GK = 10, KR = 20;
+  const grueckl_b  = EK_b - GK - KR - cumYtdNI;
+
+  const cat1Pct = ANN.cat1Pct?.[yr] ?? (SPLIT.cat1Pct[yr] || 0.44);
+  const cat3Pct = ANN.cat3Pct?.[yr] ?? (SPLIT.cat3Pct[yr] || 0.21);
+
+  D.rev.push(r); D.bestand.push(bestand); D.gesamtleist.push(gl);
+  D.matauf.push(matauf); D.bezleist.push(bezleist); D.rohertrag.push(rohertrag);
+  D.sbe.push(sbe); D.personal.push(personal); D.loehne.push(loehne); D.sozial.push(sozial); D.sonstperso.push(sonstperso);
+  D.sba.push(sba_); D.vertrieb.push(vertrieb); D.miete.push(miete); D.it_.push(it_v); D.beratung.push(beratung); D.sonstsba.push(sonstsba);
+  D.ebitda.push(ebitda); D.da.push(da); D.ebit.push(ebit); D.int_.push(int__); D.ebt.push(ebt); D.tax.push(tax); D.ni.push(ni);
+  D.nwc.push(nwc); D.ocf.push(ocf); D.capex.push(capex); D.fcf.push(fcf);
+  D.zinsen.push(zinsen); D.tilgung.push(til); D.div.push(divMo); D.cfother.push(cfother); D.cashnet.push(cashnet);
+  D.nd.push(nd_acc);
+  D.sw.push(r * SPLIT.cat1Pct[yr]); D.hw.push(r * SPLIT.cat3Pct[yr]); D.sv.push(r * (1 - SPLIT.cat1Pct[yr] - SPLIT.cat3Pct[yr]));
+  D.bs_intang.push(intang_acc); D.bs_ppe.push(ppe_acc); D.bs_finanzanl.push(5); D.bs_anlagev.push(anlagev_b);
+  D.bs_vorraete.push(vorraete_b); D.bs_forder.push(forder_b); D.bs_sonstforder.push(sonstforder_b); D.bs_kasse.push(kasse_b);
+  D.bs_umlaufv.push(umlaufv_b); D.bs_rap.push(rap_b); D.bs_totalaktiva.push(totalAktiva_b);
+  D.bs_GK.push(GK); D.bs_KR.push(KR); D.bs_grueckl.push(grueckl_b); D.bs_ytdNI.push(cumYtdNI); D.bs_EK.push(EK_b);
+  D.bs_strueckst.push(stRueckst); D.bs_sonstrueckst.push(sonstRueckst); D.bs_rueckst.push(rueckst_b);
+  D.bs_bankverb.push(gDebt_acc); D.bs_llverb.push(llverb_b); D.bs_sonstverb.push(sonstverb_b);
+  D.bs_verbind.push(verbind_b); D.bs_totalpassiva.push(totalAktiva_b);
+}
+
+// Snapshot of synthetic data – restored by resetSuSa()
+const D_orig = {};
+Object.keys(D).forEach(k => { D_orig[k] = [...D[k]]; });
+
+// ---- Hilfsfunktionen --------------------------------------------------------
+function gi(yr, mo) { return (yr - DATA_START) * 12 + mo; }
+function sm(a, f, t) { return a.slice(Math.max(0,f), t+1).reduce((s,v) => s+v, 0); }
+function av(a, f, t) { const sl = a.slice(Math.max(0,f), t+1); return sl.reduce((s,v)=>s+v,0)/sl.length; }
+function f1(v) {
+  const s = v * unitMult;
+  if (unitMult === 1000) {
+    const a = Math.round(Math.abs(s));
+    return s >= 0 ? a.toLocaleString('de-DE') : '(' + a.toLocaleString('de-DE') + ')';
+  }
+  return s >= 0 ? s.toFixed(1) : '(' + Math.abs(s).toFixed(1) + ')';
+}
+function f2(v) { return v >= 0 ? v.toFixed(2) : '(' + Math.abs(v).toFixed(2) + ')'; }
+function fkpi(v) {
+  if (unitMult === 1000) return '€' + Math.round(v * 1000).toLocaleString('de-DE') + 'k';
+  return '€' + v.toFixed(1) + 'm';
+}
+function vd(a, b, inv) {
+  if (!b || b === 0) return '<td class="vn2">n/m</td>';
+  const d = (a - b) / Math.abs(b), pos = inv ? d <= 0 : d >= 0;
+  return `<td class="${pos?'vp':'vn'}">${d>=0?'+':''}${(d*100).toFixed(1)}%</td>`;
+}
+function vdx(a, b, inv) { const d=a-b, pos=inv?d<=0:d>=0; return `<td class="${pos?'vp':'vn'}">${d>=0?'+':''}${f2(d)}x</td>`; }
+function bp(a, b) { const d=(a-b)*10000; return `<td class="${d>=0?'vp':'vn'}" style="font-size:10px">${d>=0?'+':''}${Math.round(d)}bp</td>`; }
+
+function R(lbl, arr, mi, pmi, yf, yt, pyf, pyt, lf, lt, plf, plt, inv, cls) {
+  const mv=sm(arr,mi,mi), pmv=sm(arr,pmi,pmi), yv=sm(arr,yf,yt), pyv=sm(arr,pyf,pyt), lv=sm(arr,lf,lt), plv=sm(arr,plf,plt);
+  return `<tr class="${cls||''}"><td>${lbl}</td><td>${f1(mv)}</td><td>${f1(pmv)}</td>${vd(mv,pmv,inv)}<td>${f1(yv)}</td><td>${f1(pyv)}</td>${vd(yv,pyv,inv)}<td>${f1(lv)}</td><td>${f1(plv)}</td>${vd(lv,plv,inv)}</tr>`;
+}
+function TGL(lbl, arr, gid, mi, pmi, yf, yt, pyf, pyt, lf, lt, plf, plt) {
+  const mv=sm(arr,mi,mi), pmv=sm(arr,pmi,pmi), yv=sm(arr,yf,yt), pyv=sm(arr,pyf,pyt), lv=sm(arr,lf,lt), plv=sm(arr,plf,plt);
+  return `<tr class="tgl" onclick="tg('${gid}')"><td><span style="display:inline-flex;align-items:center;gap:5px"><i class="ti ti-chevron-right" id="ico-${gid}" style="font-size:12px"></i>${lbl}</span></td><td>${f1(mv)}</td><td>${f1(pmv)}</td>${vd(mv,pmv)}<td>${f1(yv)}</td><td>${f1(pyv)}</td>${vd(yv,pyv)}<td>${f1(lv)}</td><td>${f1(plv)}</td>${vd(lv,plv)}</tr>`;
+}
+function SUB(lbl, arr, gid, mi, pmi, yf, yt, pyf, pyt, lf, lt, plf, plt) {
+  const mv=sm(arr,mi,mi), pmv=sm(arr,pmi,pmi), yv=sm(arr,yf,yt), pyv=sm(arr,pyf,pyt), lv=sm(arr,lf,lt), plv=sm(arr,plf,plt);
+  return `<tr class="sub-r" data-group="${gid}" style="display:none"><td>${lbl}</td><td>${f1(mv)}</td><td>${f1(pmv)}</td>${vd(mv,pmv)}<td>${f1(yv)}</td><td>${f1(pyv)}</td>${vd(yv,pyv)}<td>${f1(lv)}</td><td>${f1(plv)}</td>${vd(lv,plv)}</tr>`;
+}
+function MRG(lbl, num, den, mi, pmi, yf, yt, pyf, pyt, lf, lt, plf, plt) {
+  const mv=sm(num,mi,mi)/sm(den,mi,mi), pmv=sm(num,pmi,pmi)/sm(den,pmi,pmi);
+  const yv=sm(num,yf,yt)/sm(den,yf,yt), pyv=sm(num,pyf,pyt)/sm(den,pyf,pyt);
+  const lv=sm(num,lf,lt)/sm(den,lf,lt), plv=sm(num,plf,plt)/sm(den,plf,plt);
+  return `<tr class="mrg-r"><td style="padding-left:14px">${lbl}</td><td>${(mv*100).toFixed(1)}%</td><td>${(pmv*100).toFixed(1)}%</td>${bp(mv,pmv)}<td>${(yv*100).toFixed(1)}%</td><td>${(pyv*100).toFixed(1)}%</td>${bp(yv,pyv)}<td>${(lv*100).toFixed(1)}%</td><td>${(plv*100).toFixed(1)}%</td>${bp(lv,plv)}</tr>`;
+}
+function SH(l) { return `<tr class="sh"><td colspan="10">${l}</td></tr>`; }
+function SH4(l) { return `<tr class="sh"><td colspan="4">${l}</td></tr>`; }
+function SEP() { return `<tr class="sep"><td colspan="10"></td></tr>`; }
+function BR(lbl, arr, mi, pmi, inv, cls) { const v=arr[mi], pv=arr[pmi]; return `<tr class="${cls||''}"><td>${lbl}</td><td>${f1(v)}</td><td>${f1(pv)}</td>${vd(v,pv,inv)}</tr>`; }
+function BTGL(lbl, arr, gid, mi, pmi, inv) { const v=arr[mi], pv=arr[pmi]; return `<tr class="tgl" onclick="tg('${gid}')"><td><span style="display:inline-flex;align-items:center;gap:5px"><i class="ti ti-chevron-right" id="ico-${gid}" style="font-size:12px"></i>${lbl}</span></td><td>${f1(v)}</td><td>${f1(pv)}</td>${vd(v,pv,inv)}</tr>`; }
+function BSUB(lbl, arr, gid, mi, pmi, inv) { const v=arr[mi], pv=arr[pmi]; return `<tr class="sub-r" data-group="${gid}" style="display:none"><td>${lbl}</td><td>${f1(v)}</td><td>${f1(pv)}</td>${vd(v,pv,inv)}</tr>`; }
+
+window.tg = function(gid) {
+  const rows = document.querySelectorAll(`[data-group="${gid}"]`);
+  const ico = document.getElementById('ico-' + gid);
+  const hidden = rows.length && rows[0].style.display === 'none';
+  rows.forEach(r => r.style.display = hidden ? '' : 'none');
+  if (ico) ico.className = hidden ? 'ti ti-chevron-down' : 'ti ti-chevron-right';
+};
+
+window.setUnit = function(mult) {
+  unitMult = mult;
+  document.getElementById('btn-m').classList.toggle('active', mult === 1);
+  document.getElementById('btn-k').classList.toggle('active', mult === 1000);
+  render();
+};
+
+// ---- Render -----------------------------------------------------------------
+let mixD = null, mixB = null;
+
+function render() {
+  const yr = +document.getElementById('syr').value;
+  const mo = +document.getElementById('smo').value;
+  const mi = gi(yr, mo), pmi = gi(yr-1, mo);
+  const yf = gi(yr, 0), yt = mi, pyf = gi(yr-1, 0), pyt = pmi;
+  const lf = mi - 11, lt = mi, plf = pmi - 11, plt = pmi;
+  if (lf < 0 || plf < 0) return;
+
+  // Unit labels
+  const unitLbl = unitMult === 1000 ? '€k' : '€m';
+  document.querySelectorAll('.unit-hdr').forEach(el => el.textContent = unitLbl);
+  const udEl = document.getElementById('unit-desc');
+  if (udEl) udEl.textContent = 'Alle Werte in ' + unitLbl;
+
+  ['hmo','hmo-cf'].forEach(id => { const el=document.getElementById(id); if(el) el.textContent=SHO[mo]+' '+yr; });
+  ['hytd','hytd-cf'].forEach(id => { const el=document.getElementById(id); if(el) el.textContent='YTD '+SHO[mo]; });
+  document.getElementById('hnd-cur').textContent = SHO[mo]+' '+yr;
+  document.getElementById('hbl').textContent = SHO[mo]+' '+yr;
+
+  const ltmRev = sm(D.rev,lf,lt), plRev = sm(D.rev,plf,plt);
+  const ltmE = sm(D.ebitda,lf,lt), plE = sm(D.ebitda,plf,plt);
+  const ndNow = D.nd[mi], ndPY = D.nd[pmi];
+  const levNow = ndNow/ltmE, levPY = ndPY/plE;
+
+  function kv(v, el, cls) { document.getElementById(el).innerHTML = `<span class="${cls}">${v}</span>`; }
+  document.getElementById('k1').textContent = fkpi(ltmRev);
+  const r1 = (ltmRev-plRev)/Math.abs(plRev)*100; kv((r1>=0?'+':'')+r1.toFixed(1)+'% vs. VJ LTM','k1v',r1>=0?'vp':'vn');
+  document.getElementById('k2').textContent = fkpi(ltmE);
+  const r2 = (ltmE-plE)/Math.abs(plE)*100; kv((r2>=0?'+':'')+r2.toFixed(1)+'% vs. VJ LTM','k2v',r2>=0?'vp':'vn');
+  document.getElementById('k3').textContent = fkpi(ndNow);
+  const r3 = (ndNow-ndPY)/Math.abs(ndPY)*100; kv((r3>=0?'+':'')+r3.toFixed(1)+'% vs. VJ','k3v',r3<=0?'vp':'vn');
+  document.getElementById('k4').textContent = levNow.toFixed(2)+'x';
+  const r4 = levNow-levPY; kv((r4>=0?'+':'')+r4.toFixed(2)+'x vs. VJ','k4v',r4<=0?'vp':'vn');
+
+  const a = [mi,pmi,yf,yt,pyf,pyt,lf,lt,plf,plt];
+
+  // P&L
+  let pl = '';
+  pl += R('Umsatzerlöse',D.rev,...a,false,'');
+  pl += R('Bestandsveränderungen',D.bestand,...a,false,'');
+  pl += R('= Gesamtleistung',D.gesamtleist,...a,false,'st');
+  pl += R('Materialaufwand',D.matauf,...a,true,'');
+  pl += R('Bezogene Leistungen',D.bezleist,...a,true,'');
+  pl += R('= Rohertrag',D.rohertrag,...a,false,'st');
+  pl += MRG('Rohmarge',D.rohertrag,D.rev,...a);
+  pl += R('+ Sonst. betr. Erträge (sbE)',D.sbe,...a,false,'');
+  pl += TGL('Personalkosten',D.personal,'perso',...a);
+  pl += SUB('Löhne & Gehälter',D.loehne,'perso',...a);
+  pl += SUB('Sozialabgaben & Altersversorgung',D.sozial,'perso',...a);
+  pl += SUB('Sonstige Personalkosten',D.sonstperso,'perso',...a);
+  pl += MRG('Personalkosten in % GL',D.personal,D.gesamtleist,...a);
+  pl += TGL('Sonst. betr. Aufwendungen (sbA)',D.sba,'sba',...a);
+  pl += SUB('Vertrieb & Marketing',D.vertrieb,'sba',...a);
+  pl += SUB('Miete & Facility',D.miete,'sba',...a);
+  pl += SUB('IT & Infrastruktur',D.it_,'sba',...a);
+  pl += SUB('Beratung & Recht',D.beratung,'sba',...a);
+  pl += SUB('Sonstige sbA',D.sonstsba,'sba',...a);
+  pl += R('= EBITDA',D.ebitda,...a,false,'st');
+  pl += MRG('EBITDA-Marge',D.ebitda,D.rev,...a);
+  document.getElementById('pl-b').innerHTML = pl;
+
+  // CF
+  let cf = '';
+  cf += SH('Operativer Cash Flow');
+  cf += R('EBITDA',D.ebitda,...a,false,'');
+  cf += R('+ Veränderung NWC',D.nwc,...a,false,'');
+  cf += R('+ Ertragsteuern (gezahlt)',D.tax,...a,false,'');
+  cf += R('= Operativer Cash Flow (OCF)',D.ocf,...a,false,'st');
+  cf += MRG('OCF-Marge',D.ocf,D.rev,...a);
+  cf += SEP();
+  cf += SH('Free Cash Flow');
+  cf += R('OCF',D.ocf,...a,false,'');
+  cf += R('– Investitionen (Capex)',D.capex,...a,true,'');
+  cf += MRG('Capex in % Umsatz',D.capex,D.rev,...a);
+  cf += R('= Free Cash Flow (FCF)',D.fcf,...a,false,'st');
+  cf += MRG('FCF-Marge',D.fcf,D.rev,...a);
+  cf += SEP();
+  cf += SH('Netto Cash Flow');
+  cf += R('FCF',D.fcf,...a,false,'');
+  cf += R('– Zinsen (gezahlt)',D.zinsen,...a,true,'');
+  cf += R('– Tilgung',D.tilgung,...a,true,'');
+  cf += R('– Dividenden',D.div,...a,true,'');
+  cf += R('– Sonstiges Finanzierung',D.cfother,...a,false,'');
+  cf += R('= Netto Cash Flow',D.cashnet,...a,false,'st');
+  document.getElementById('cf-b').innerHTML = cf;
+
+  // Bilanz
+  let aktiva = SH4('A. Anlagevermögen');
+  aktiva += BTGL('Anlagevermögen gesamt',D.bs_anlagev,'bsav',mi,pmi,false);
+  aktiva += BSUB('I. Immaterielle Vermögensgegenstände',D.bs_intang,'bsav',mi,pmi,false);
+  aktiva += BSUB('II. Sachanlagen (PP&E)',D.bs_ppe,'bsav',mi,pmi,false);
+  aktiva += BSUB('III. Finanzanlagen',D.bs_finanzanl,'bsav',mi,pmi,false);
+  aktiva += SH4('B. Umlaufvermögen');
+  aktiva += BTGL('Umlaufvermögen gesamt',D.bs_umlaufv,'bsuv',mi,pmi,false);
+  aktiva += BSUB('I. Vorräte',D.bs_vorraete,'bsuv',mi,pmi,false);
+  aktiva += BSUB('II. Forderungen aus L&L',D.bs_forder,'bsuv',mi,pmi,false);
+  aktiva += BSUB('III. Sonstige Forderungen & VZ',D.bs_sonstforder,'bsuv',mi,pmi,false);
+  aktiva += BSUB('IV. Kasse & Bank',D.bs_kasse,'bsuv',mi,pmi,false);
+  aktiva += BR('C. Rechnungsabgrenzungsposten',D.bs_rap,mi,pmi,false,'');
+  aktiva += BR('= Bilanzsumme Aktiva',D.bs_totalaktiva,mi,pmi,false,'tot');
+  document.getElementById('bl-aktiva').innerHTML = aktiva;
+
+  let passiva = SH4('A. Eigenkapital');
+  passiva += BTGL('Eigenkapital gesamt',D.bs_EK,'bsek',mi,pmi,false);
+  passiva += BSUB('I. Gezeichnetes Kapital',D.bs_GK,'bsek',mi,pmi,false);
+  passiva += BSUB('II. Kapitalrücklage',D.bs_KR,'bsek',mi,pmi,false);
+  passiva += BSUB('III. Gewinnrücklagen',D.bs_grueckl,'bsek',mi,pmi,false);
+  passiva += BSUB('IV. Jahresüberschuss YTD',D.bs_ytdNI,'bsek',mi,pmi,false);
+  passiva += SH4('B. Rückstellungen');
+  passiva += BTGL('Rückstellungen gesamt',D.bs_rueckst,'bsrk',mi,pmi,true);
+  passiva += BSUB('I. Steuerrückstellungen',D.bs_strueckst,'bsrk',mi,pmi,true);
+  passiva += BSUB('II. Sonstige Rückstellungen',D.bs_sonstrueckst,'bsrk',mi,pmi,true);
+  passiva += SH4('C. Verbindlichkeiten');
+  passiva += BTGL('Verbindlichkeiten gesamt',D.bs_verbind,'bsvb',mi,pmi,true);
+  passiva += BSUB('I. Verb. ggü. Kreditinstituten',D.bs_bankverb,'bsvb',mi,pmi,true);
+  passiva += BSUB('II. Verb. aus L&L',D.bs_llverb,'bsvb',mi,pmi,true);
+  passiva += BSUB('III. Sonstige Verbindlichkeiten',D.bs_sonstverb,'bsvb',mi,pmi,true);
+  passiva += BR('= Bilanzsumme Passiva',D.bs_totalpassiva,mi,pmi,false,'tot');
+  document.getElementById('bl-passiva').innerHTML = passiva;
+
+  const diff = Math.abs(D.bs_totalaktiva[mi] - D.bs_totalpassiva[mi]);
+  const ekQ = (D.bs_EK[mi] / D.bs_totalaktiva[mi] * 100).toFixed(1);
+  document.getElementById('bl-check').innerHTML =
+    `Bilanzsumme: <strong>€${D.bs_totalaktiva[mi].toFixed(1)}m</strong> &nbsp;·&nbsp; Aktiva = Passiva (Δ = €${diff.toFixed(3)}m) &nbsp;·&nbsp; Eigenkapitalquote: ${ekQ}%`;
+
+  // Net Debt
+  const pltmE = sm(D.ebitda,mi-11,mi), ppltmE = sm(D.ebitda,pmi-11,pmi);
+  const gd = D.bs_bankverb[mi], gdPY = D.bs_bankverb[pmi];
+  const csh = D.bs_kasse[mi], cshPY = D.bs_kasse[pmi];
+  function snR(lbl,a2,b,inv,cls) { return `<tr class="${cls||''}"><td>${lbl}</td><td>${f1(a2)}</td><td>${f1(b)}</td>${vd(a2,b,inv)}</tr>`; }
+  let nb = SH4('Bilanzpositionen');
+  nb += snR('Bruttoverschuldung',gd,gdPY,true,'');
+  nb += snR('Kasse & Äquivalente',csh,cshPY,false,'');
+  nb += snR('Net Debt',ndNow,ndPY,true,'st');
+  nb += snR('LTM EBITDA',pltmE,ppltmE,false,'');
+  nb += `<tr class="st"><td>Net Leverage</td><td>${levNow.toFixed(2)}x</td><td>${levPY.toFixed(2)}x</td>${vdx(levNow,levPY,true)}</tr>`;
+  document.getElementById('nd-b').innerHTML = nb;
+
+  const openND  = D.nd[gi(yr,0)-1]  || D.nd[gi(yr,0)];
+  const openNDpy = D.nd[gi(yr-1,0)-1] || D.nd[gi(yr-1,0)];
+  const fcfYtd = sm(D.fcf,yf,yt), fcfYtdPY = sm(D.fcf,pyf,pyt);
+  const othYtd = -(ndNow-openND+fcfYtd), othYtdPY = -(ndPY-openNDpy+fcfYtdPY);
+  let br = SH4('Net Debt Bridge YTD');
+  br += snR('Eröffnung (01. Jan.)',openND,openNDpy,true,'');
+  br += snR('Free Cash Flow',-(fcfYtd),-(fcfYtdPY),true,'');
+  br += snR('Zinsen, Tilgung, Div.',othYtd,othYtdPY,false,'');
+  br += snR('Abschluss (Monatsende)',ndNow,ndPY,true,'st');
+  document.getElementById('nd-br').innerHTML = br;
+
+  const ytdAvgND = av(D.nd,yf,yt), pyYtdAvgND = av(D.nd,pyf,pyt);
+  const ltmAvgND = av(D.nd,lf,lt), plAvgND = av(D.nd,plf,plt);
+  let lb = `<tr><td>Net Debt</td><td>${f1(ndNow)}</td><td>${f1(ndPY)}</td>${vd(ndNow,ndPY,true)}<td>${f1(ytdAvgND)}</td><td>${f1(pyYtdAvgND)}</td>${vd(ytdAvgND,pyYtdAvgND,true)}<td>${f1(ltmAvgND)}</td><td>${f1(plAvgND)}</td>${vd(ltmAvgND,plAvgND,true)}</tr>`;
+  lb += `<tr><td>LTM EBITDA</td><td>${f1(pltmE)}</td><td>${f1(ppltmE)}</td>${vd(pltmE,ppltmE,false)}<td colspan="6" style="color:var(--text-tertiary);font-size:10px">rollierend 12 Monate</td></tr>`;
+  lb += `<tr class="st"><td>Net Leverage</td><td>${levNow.toFixed(2)}x</td><td>${levPY.toFixed(2)}x</td>${vdx(levNow,levPY,true)}<td>${(ytdAvgND/ltmE).toFixed(2)}x</td><td>${(pyYtdAvgND/plE).toFixed(2)}x</td>${vdx(ytdAvgND/ltmE,pyYtdAvgND/plE,true)}<td>${(ltmAvgND/ltmE).toFixed(2)}x</td><td>${(plAvgND/plE).toFixed(2)}x</td>${vdx(ltmAvgND/ltmE,plAvgND/plE,true)}</tr>`;
+  document.getElementById('lev-b').innerHTML = lb;
+
+  // Umsatzsplit
+  const ltmSW=sm(D.sw,lf,lt), plSW=sm(D.sw,plf,plt);
+  const ltmSV=sm(D.sv,lf,lt), plSV=sm(D.sv,plf,plt);
+  const ltmHW=sm(D.hw,lf,lt), plHW=sm(D.hw,plf,plt);
+  document.getElementById('ms1').textContent = fkpi(ltmSW);
+  document.getElementById('ms1p').textContent = (ltmSW/ltmRev*100).toFixed(1)+'% des Umsatzes';
+  document.getElementById('ms2').textContent = fkpi(ltmSV);
+  document.getElementById('ms2p').textContent = (ltmSV/ltmRev*100).toFixed(1)+'% des Umsatzes';
+  document.getElementById('ms3').textContent = fkpi(ltmHW);
+  document.getElementById('ms3p').textContent = (ltmHW/ltmRev*100).toFixed(1)+'% des Umsatzes';
+
+  let mx = SH('Umsatz nach Kategorie');
+  mx += R(SPLIT.cat1Name,D.sw,...a,false,'');
+  mx += R(SPLIT.cat2Name,D.sv,...a,false,'');
+  mx += R(SPLIT.cat3Name,D.hw,...a,false,'');
+  mx += R('= Gesamt',D.rev,...a,false,'st');
+  document.getElementById('mx-b').innerHTML = mx;
+
+  const C1 = ['#378ADD','#1D9E75','#BA7517'];
+  if (mixD) mixD.destroy();
+  mixD = new Chart(document.getElementById('ch-mix'), {
+    type: 'doughnut',
+    data: { labels: [SPLIT.cat1Name,SPLIT.cat2Name,SPLIT.cat3Name], datasets: [{ data:[ltmSW,ltmSV,ltmHW], backgroundColor:C1, borderWidth:0, hoverOffset:4 }] },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:(c)=>{ const u=unitMult===1000?`€${Math.round(c.parsed*1000).toLocaleString('de-DE')}k`:`€${c.parsed.toFixed(1)}m`; return `${c.label}: ${u} (${(c.parsed/ltmRev*100).toFixed(1)}%)`; } } } } }
+  });
+  if (mixB) mixB.destroy();
+  mixB = new Chart(document.getElementById('ch-bar'), {
+    type: 'bar',
+    data: { labels:[SPLIT.cat1Name,SPLIT.cat2Name,SPLIT.cat3Name], datasets:[
+      { label:'LTM', data:[ltmSW,ltmSV,ltmHW], backgroundColor:C1, borderWidth:0 },
+      { label:'VJ LTM', data:[plSW,plSV,plHW], backgroundColor:['rgba(55,138,221,0.3)','rgba(29,158,117,0.3)','rgba(186,117,23,0.3)'], borderWidth:0 }
+    ] },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false}, tooltip:{callbacks:{label:(c)=>{ const u=unitMult===1000?`€${Math.round(c.parsed.y*1000).toLocaleString('de-DE')}k`:`€${c.parsed.y.toFixed(1)}m`; return `${c.dataset.label}: ${u}`; }}} }, scales:{ x:{grid:{display:false}}, y:{ticks:{callback:(v)=>unitMult===1000?'€'+(v*1000).toFixed(0)+'k':'€'+v.toFixed(0)+'m'}} } }
+  });
+}
+
+// ---- Init -------------------------------------------------------------------
+const smo = document.getElementById('smo');
+const syr = document.getElementById('syr');
+MNM.forEach((m,i) => { const o=document.createElement('option'); o.value=i; o.textContent=m; smo.appendChild(o); });
+REPORT_YEARS.forEach(y => { const o=document.createElement('option'); o.value=y; o.textContent=y; syr.appendChild(o); });
+syr.value = REPORT_YEARS[REPORT_YEARS.length-1];
+smo.value = 11;
+
+smo.addEventListener('change', render);
+syr.addEventListener('change', render);
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    ['pl','cf','bl','nd','mx','dt'].forEach(t => {
+      document.getElementById('tp-'+t).style.display = t === btn.dataset.t ? '' : 'none';
+    });
+  });
+});
+
+// ---- DATEV SuSa Importer ---------------------------------------------------
+
+function parseDE(str) {
+  const s = String(str || '').trim().replace(/\s/g, '');
+  if (!s) return 0;
+  return parseFloat(s.replace(/\./g, '').replace(',', '.')) || 0;
+}
+
+function sumAcc(kontoData, from, to, col) {
+  let s = 0;
+  for (const [k, v] of Object.entries(kontoData)) {
+    const n = parseInt(k, 10);
+    if (n >= from && n <= to) s += (v[col] || 0);
+  }
+  return s;
+}
+
+function parseSuSa(arrayBuffer, filename) {
+  let wb;
+  try { wb = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' }); }
+  catch (e) { return { error: 'Datei konnte nicht gelesen werden: ' + e.message }; }
+
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
+
+  // Detect period from date range in metadata (e.g. "01.01.2025 - 31.01.2025")
+  let period = null;
+  for (let i = 0; i < Math.min(30, rows.length); i++) {
+    for (const cell of rows[i]) {
+      const m = String(cell).match(/(\d{2})\.(\d{2})\.(\d{4})\s*[-–]\s*(\d{2})\.(\d{2})\.(\d{4})/);
+      if (m) { period = { yr: +m[6], mo: +m[5] - 1 }; break; }
+    }
+    if (period) break;
+  }
+
+  // Find header row containing "Konto" and Soll/Haben columns
+  let headerIdx = -1, kontoCol = -1, sollCol = -1, habenCol = -1;
+  for (let i = 0; i < Math.min(40, rows.length); i++) {
+    const row = rows[i];
+    const rowStr = row.map(c => String(c).toLowerCase()).join('|');
+    if (rowStr.includes('konto') && (rowStr.includes('soll') || rowStr.includes('haben'))) {
+      headerIdx = i;
+      row.forEach((h, j) => {
+        const hh = String(h).toLowerCase().trim();
+        if (/^konto/.test(hh)) kontoCol = j;
+        if (hh.includes('umsatz') && hh.includes('soll')) sollCol = j;
+        if (hh.includes('umsatz') && hh.includes('haben')) habenCol = j;
+      });
+      break;
+    }
+  }
+
+  if (headerIdx < 0 || kontoCol < 0) return { error: 'Kopfzeile nicht erkannt – "Konto" und "Umsatz Soll/Haben" erwartet.' };
+  if (sollCol < 0 || habenCol < 0) return { error: 'Spalten "Umsatz Soll" / "Umsatz Haben" nicht gefunden.' };
+  if (!period) return { error: 'Zeitraum nicht erkannt (TT.MM.JJJJ – TT.MM.JJJJ erwartet).' };
+
+  const kontoData = {};
+  for (let i = headerIdx + 1; i < rows.length; i++) {
+    const row = rows[i];
+    const raw = String(row[kontoCol] || '').trim().replace(/\D/g, '');
+    if (raw.length < 4) continue;
+    const konto = raw.substring(0, 4);
+    if (!kontoData[konto]) kontoData[konto] = { soll: 0, haben: 0 };
+    kontoData[konto].soll  += parseDE(row[sollCol]);
+    kontoData[konto].haben += parseDE(row[habenCol]);
+  }
+
+  if (Object.keys(kontoData).length === 0) return { error: 'Keine Kontendaten gefunden.' };
+  return { period, kontoData, filename };
+}
+
+function mapToD(kontoData) {
+  const s = (from, to, col) => sumAcc(kontoData, from, to, col) / 1e6;
+  return {
+    rev:        s(8000, 8999, 'haben'),
+    matauf:    -s(3100, 3199, 'soll'),
+    bezleist:  -s(3200, 3299, 'soll'),
+    loehne:    -s(4000, 4099, 'soll'),
+    sozial:    -s(4100, 4199, 'soll'),
+    sonstperso:-s(4900, 4999, 'soll'),
+    miete:     -s(4200, 4299, 'soll'),
+    vertrieb:  -s(4300, 4499, 'soll'),
+    it_:       -s(4600, 4699, 'soll'),
+    beratung:  -s(4700, 4799, 'soll'),
+    sonstsba:  -(s(4500, 4599, 'soll') + s(4800, 4899, 'soll')),
+    zinsen:    -s(7300, 7399, 'soll'),
+  };
+}
+
+function deltaSuSa(cur, prev) {
+  const delta = {};
+  const keys = new Set([...Object.keys(cur), ...Object.keys(prev)]);
+  for (const k of keys) {
+    const c = cur[k]  || { soll: 0, haben: 0 };
+    const p = prev[k] || { soll: 0, haben: 0 };
+    delta[k] = { soll: c.soll - p.soll, haben: c.haben - p.haben };
+  }
+  return delta;
+}
+
+window.applySuSa = function() {
+  if (susaStore.size === 0) {
+    document.getElementById('apply-msg').textContent = 'Keine Daten geladen.';
+    return;
+  }
+  Object.keys(D).forEach(k => { D[k] = [...D_orig[k]]; });
+
+  const entries = [...susaStore.entries()].sort((a, b) => a[0] - b[0]);
+  let prevEntry = null;
+
+  for (const [idx, entry] of entries) {
+    const { period, kontoData } = entry;
+    if (idx < 0 || idx >= D.rev.length) { prevEntry = entry; continue; }
+
+    // Monthly delta: subtract prior month's cumulative if same year & consecutive
+    let deltaKonto = kontoData;
+    if (prevEntry && prevEntry.period.yr === period.yr && period.mo > 0 &&
+        gi(prevEntry.period.yr, prevEntry.period.mo) === idx - 1) {
+      deltaKonto = deltaSuSa(kontoData, prevEntry.kontoData);
+    }
+
+    const m = mapToD(deltaKonto);
+    if (m.rev <= 0) { prevEntry = entry; continue; }
+
+    D.rev[idx]       = m.rev;
+    D.bestand[idx]   = 0;
+    D.gesamtleist[idx] = m.rev;
+    D.matauf[idx]    = m.matauf;
+    D.bezleist[idx]  = m.bezleist;
+    D.rohertrag[idx] = m.rev + m.matauf + m.bezleist;
+    D.sbe[idx]       = 0;
+    D.loehne[idx]    = m.loehne;
+    D.sozial[idx]    = m.sozial;
+    D.sonstperso[idx]= m.sonstperso;
+    D.personal[idx]  = m.loehne + m.sozial + m.sonstperso;
+    D.vertrieb[idx]  = m.vertrieb;
+    D.miete[idx]     = m.miete;
+    D.it_[idx]       = m.it_;
+    D.beratung[idx]  = m.beratung;
+    D.sonstsba[idx]  = m.sonstsba;
+    D.sba[idx]       = m.vertrieb + m.miete + m.it_ + m.beratung + m.sonstsba;
+    D.ebitda[idx]    = D.rohertrag[idx] + D.personal[idx] + D.sba[idx];
+    D.ebit[idx]      = D.ebitda[idx] + D.da[idx];
+    if (m.zinsen !== 0) { D.int_[idx] = m.zinsen; D.zinsen[idx] = m.zinsen; }
+    D.ebt[idx]       = D.ebit[idx] + D.int_[idx];
+    D.tax[idx]       = D.ebt[idx] > 0 ? -D.ebt[idx] * TAX_RATE : 0;
+    D.ni[idx]        = D.ebt[idx] + D.tax[idx];
+    D.ocf[idx]       = D.ebitda[idx] + D.tax[idx] + D.nwc[idx];
+    D.fcf[idx]       = D.ocf[idx] + D.capex[idx];
+    D.cashnet[idx]   = D.fcf[idx] + D.zinsen[idx] + D.tilgung[idx] + D.div[idx] + D.cfother[idx];
+
+    prevEntry = entry;
+  }
+
+  susaApplied = true;
+  document.getElementById('apply-msg').innerHTML =
+    `<span class="vp">✓ ${susaStore.size} Periode(n) übernommen – Dashboard aktualisiert.</span>`;
+  render();
+};
+
+window.resetSuSa = function() {
+  Object.keys(D).forEach(k => { D[k] = [...D_orig[k]]; });
+  susaApplied = false;
+  document.getElementById('apply-msg').innerHTML =
+    '<span style="color:var(--text-secondary)">Dashboard auf Planwerte zurückgesetzt.</span>';
+  render();
+};
+
+window.delSusa = function(idx) {
+  susaStore.delete(idx);
+  updateSusaList();
+};
+
+function updateSusaList() {
+  const listEl  = document.getElementById('susa-list');
+  const countEl = document.getElementById('susa-count');
+  if (countEl) countEl.textContent = '(' + susaStore.size + ')';
+  if (!listEl) return;
+  if (susaStore.size === 0) {
+    listEl.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary);padding:4px 0">Noch keine Dateien geladen.</div>';
+    return;
+  }
+  const sorted = [...susaStore.entries()].sort((a, b) => a[0] - b[0]);
+  listEl.innerHTML = sorted.map(([idx, { period, filename }]) =>
+    `<div class="susa-item">
+      <span><span class="dot-ok"></span><strong>${MNM[period.mo]} ${period.yr}</strong>
+      <span style="color:var(--text-secondary);font-size:10px;margin-left:6px">${filename}</span></span>
+      <span class="susa-del" onclick="delSusa(${idx})">✕ entfernen</span>
+    </div>`
+  ).join('');
+}
+
+function handleFiles(files) {
+  const msgEl = document.getElementById('parse-msg');
+  const todo = Array.from(files);
+  if (!todo.length) return;
+  let done = 0, errs = [];
+  msgEl.innerHTML = `<span style="color:var(--text-secondary)">${todo.length} Datei(en) werden verarbeitet…</span>`;
+  todo.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const result = parseSuSa(e.target.result, file.name);
+      done++;
+      if (result.error) {
+        errs.push(`${file.name}: ${result.error}`);
+      } else {
+        susaStore.set(gi(result.period.yr, result.period.mo), result);
+        updateSusaList();
+      }
+      if (done === todo.length) {
+        const ok = done - errs.length;
+        let msg = ok > 0 ? `<span class="vp">✓ ${ok} Datei(en) geladen</span>` : '';
+        if (errs.length) msg += (msg ? ' · ' : '') + `<span class="vn">✗ ${errs.join('; ')}</span>`;
+        msgEl.innerHTML = msg;
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+// ---- Ordner-Verknüpfung (File System Access API) ----------------------------
+
+window.pickFolder = async function() {
+  if (!window.showDirectoryPicker) {
+    document.getElementById('parse-msg').innerHTML =
+      '<span class="vn">Ordner-Zugriff wird nur in Chrome / Edge unterstützt.</span>';
+    return;
+  }
+  try {
+    folderHandle = await window.showDirectoryPicker();
+    document.getElementById('folder-name').textContent = folderHandle.name;
+    const fs = document.getElementById('folder-status');
+    fs.style.display = 'flex';
+    document.getElementById('pick-btn').innerHTML =
+      '<i class="ti ti-folder-open" style="margin-right:5px;vertical-align:-2px"></i>Anderen Ordner wählen';
+    await rescanFolder();
+  } catch (e) {
+    if (e.name !== 'AbortError') {
+      document.getElementById('parse-msg').innerHTML =
+        '<span class="vn">Fehler: ' + e.message + '</span>';
+    }
+  }
+};
+
+window.rescanFolder = async function() {
+  if (!folderHandle) return;
+  const fileObjs = [];
+  try {
+    for await (const [name, handle] of folderHandle.entries()) {
+      if (handle.kind === 'file' && /\.(xlsx|xls)$/i.test(name)) {
+        fileObjs.push(await handle.getFile());
+      }
+    }
+  } catch (e) {
+    document.getElementById('parse-msg').innerHTML =
+      '<span class="vn">Ordner-Zugriff verweigert – bitte erneut verknüpfen.</span>';
+    folderHandle = null;
+    document.getElementById('folder-status').style.display = 'none';
+    return;
+  }
+  if (fileObjs.length === 0) {
+    document.getElementById('parse-msg').innerHTML =
+      '<span style="color:var(--text-secondary)">Keine .xlsx/.xls-Dateien im Ordner gefunden.</span>';
+    return;
+  }
+  handleFiles(fileObjs);
+};
+
+// File input & drag-drop wiring
+document.getElementById('file-in').addEventListener('change', function(e) {
+  handleFiles(e.target.files); e.target.value = '';
+});
+const _dz = document.getElementById('drop-zone');
+_dz.addEventListener('click',     function(e) { if (e.target.tagName !== 'LABEL' && e.target.tagName !== 'INPUT') document.getElementById('file-in').click(); });
+_dz.addEventListener('dragover',  function(e) { e.preventDefault(); _dz.classList.add('dragover'); });
+_dz.addEventListener('dragleave', function()  { _dz.classList.remove('dragover'); });
+_dz.addEventListener('drop',      function(e) { e.preventDefault(); _dz.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
+
+// ---- Init -------------------------------------------------------------------
+render();
+</script>
+</body>
+</html>
