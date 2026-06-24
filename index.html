@@ -967,6 +967,7 @@ window.resetSuSa = function() {
 window.delSusa = function(idx) {
   susaStore.delete(idx);
   updateSusaList();
+  saveSusaToStorage();
 };
 
 function updateSusaList() {
@@ -1010,6 +1011,7 @@ function handleFiles(files) {
         let msg = ok > 0 ? `<span class="vp">✓ ${ok} Datei(en) geladen</span>` : '';
         if (errs.length) msg += (msg ? ' · ' : '') + `<span class="vn">✗ ${errs.join('; ')}</span>`;
         msgEl.innerHTML = msg;
+        if (ok > 0) saveSusaToStorage();
       }
     };
     reader.readAsArrayBuffer(file);
@@ -1064,6 +1066,29 @@ window.rescanFolder = async function() {
   handleFiles(fileObjs);
 };
 
+// ---- localStorage persistence -----------------------------------------------
+
+function saveSusaToStorage() {
+  try {
+    localStorage.setItem('susa_data', JSON.stringify([...susaStore.entries()]));
+  } catch(e) {}
+}
+
+function loadSusaFromStorage() {
+  try {
+    const raw = localStorage.getItem('susa_data');
+    if (!raw) return false;
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr) || arr.length === 0) return false;
+    arr.forEach(([idx, v]) => susaStore.set(idx, v));
+    updateSusaList();
+    return true;
+  } catch(e) {
+    localStorage.removeItem('susa_data');
+    return false;
+  }
+}
+
 // File input & drag-drop wiring
 document.getElementById('file-in').addEventListener('change', function(e) {
   handleFiles(e.target.files); e.target.value = '';
@@ -1075,7 +1100,11 @@ _dz.addEventListener('dragleave', function()  { _dz.classList.remove('dragover')
 _dz.addEventListener('drop',      function(e) { e.preventDefault(); _dz.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
 
 // ---- Init -------------------------------------------------------------------
-render();
+if (loadSusaFromStorage()) {
+  applySuSa();
+} else {
+  render();
+}
 </script>
 </body>
 </html>
